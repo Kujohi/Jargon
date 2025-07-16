@@ -382,15 +382,14 @@ class SupabaseToRDSMigrator:
             if self.rds_conn:
                 self.rds_conn.close()
 
-def get_rds_config_from_secrets():
+def get_rds_config_from_secrets(secret_name: str):
     """Get RDS configuration from AWS Secrets Manager"""
     try:
         secrets_client = boto3.client('secretsmanager')
-        secret_name = os.getenv('RDS_SECRET_NAME', 'Jargon AI/database/dev')
-        
+
         response = secrets_client.get_secret_value(SecretId=secret_name)
         secret = json.loads(response['SecretString'])
-        
+
         return {
             'host': secret['host'],
             'port': secret['port'],
@@ -404,16 +403,27 @@ def get_rds_config_from_secrets():
 
 def main():
     parser = argparse.ArgumentParser(description='Migrate data from Supabase to AWS RDS')
-    parser.add_argument('--supabase-url', required=True, help='Supabase project URL')
-    parser.add_argument('--supabase-key', required=True, help='Supabase service role key')
+    parser.add_argument('--supabase-url', required=False, help='Supabase project URL (fallback: SUPABASE_URL env)')
+    parser.add_argument('--supabase-key', required=False, help='Supabase service role key (fallback: SUPABASE_SERVICE_KEY env)')
     parser.add_argument('--rds-secret-name', default='Jargon AI/database/dev', help='RDS secret name in AWS Secrets Manager')
     parser.add_argument('--dry-run', action='store_true', help='Run migration in dry-run mode')
     
     args = parser.parse_args()
+
+    # ----------------------------------------------------------------------------
+    # Fall back to environment variables when CLI arguments are omitted
+    # ----------------------------------------------------------------------------
+    if not args.supabase_url:
+        args.supabase_url = os.getenv("SUPABASE_URL")
+    if not args.supabase_key:
+        args.supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+    if not args.supabase_url or not args.supabase_key:
+        parser.error("Supabase URL and Service Key must be provided either as CLI arguments or environment variables")
     
     try:
         # Get RDS configuration
-        rds_config = get_rds_config_from_secrets()
+        rds_config = get_rds_config_from_secrets(args.rds_secret_name)
         
         # Create migrator
         migrator = SupabaseToRDSMigrator(
