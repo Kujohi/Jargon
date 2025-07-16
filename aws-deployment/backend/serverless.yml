@@ -7,37 +7,38 @@ provider:
   runtime: nodejs18.x
   region: ${opt:region, 'us-east-1'}
   stage: ${opt:stage, 'dev'}
-  environment: ${file(.env.${opt:stage, 'dev'})}
-  
-  # VPC Configuration
+
+  # VPC Configuration pulled from SSM parameters written by Terraform
   vpc:
     securityGroupIds:
-      - ${ssm:/Jargon AI/${opt:stage, 'dev'}/lambda-security-group-id}
+      - ${ssm:/jargon-ai/${self:provider.stage}/lambda-security-group-id}
     subnetIds:
-      - ${ssm:/Jargon AI/${opt:stage, 'dev'}/private-subnet-1}
-      - ${ssm:/Jargon AI/${opt:stage, 'dev'}/private-subnet-2}
-  
-  # IAM Role
-  role: ${ssm:/Jargon AI/${opt:stage, 'dev'}/lambda-execution-role-arn}
-  
-  # Environment variables
+      - ${ssm:/jargon-ai/${self:provider.stage}/private-subnet-1}
+      - ${ssm:/jargon-ai/${self:provider.stage}/private-subnet-2}
+
+  # IAM Role ARN created by Terraform and stored in SSM
+  role: ${ssm:/jargon-ai/${self:provider.stage}/lambda-execution-role-arn}
+
   environment:
-    NODE_ENV: ${opt:stage, 'dev'}
-    DATABASE_URL: ${ssm:/Jargon AI/${opt:stage, 'dev'}/database-url}
-    DYNAMODB_TRANSACTIONS_TABLE: ${ssm:/Jargon AI/${opt:stage, 'dev'}/dynamodb-transactions-table}
-    DYNAMODB_JARS_TABLE: ${ssm:/Jargon AI/${opt:stage, 'dev'}/dynamodb-jars-table}
-    S3_BUCKET: ${ssm:/Jargon AI/${opt:stage, 'dev'}/s3-bucket-name}
+    NODE_ENV: ${self:provider.stage}
+
+    # Core back-end resources resolved from SSM (populated by Terraform outputs)
+    DATABASE_SECRET_NAME: ${ssm:/jargon-ai/${self:provider.stage}/rds-secret-name}
+    DYNAMODB_TRANSACTIONS_TABLE: ${ssm:/jargon-ai/${self:provider.stage}/dynamodb-transactions-table}
+    DYNAMODB_JARS_TABLE: ${ssm:/jargon-ai/${self:provider.stage}/dynamodb-jars-table}
+    S3_BUCKET: ${ssm:/jargon-ai/${self:provider.stage}/s3-bucket-name}
+
+    COGNITO_USER_POOL_ID: ${ssm:/jargon-ai/${self:provider.stage}/cognito-user-pool-id}
+    COGNITO_CLIENT_ID:     ${ssm:/jargon-ai/${self:provider.stage}/cognito-app-client-id}
+
+    # ML service + Bedrock
+    ML_SERVICE_URL: ${ssm:/jargon-ai/${self:provider.stage}/ml-service-url, ''}
     BEDROCK_MODEL_ID: anthropic.claude-3-sonnet-20240229-v1:0
-    COGNITO_USER_POOL_ID: ${ssm:/Jargon AI/${opt:stage, 'dev'}/cognito-user-pool-id}
-    COGNITO_CLIENT_ID: ${ssm:/Jargon AI/${opt:stage, 'dev'}/cognito-client-id}
-  
-  # Logging
+
   logRetentionInDays: 14
-  
-  # Tags
   tags:
-    Project: Jargon AI-Prototype
-    Environment: ${opt:stage, 'dev'}
+    Project: JargonAI-Prototype
+    Environment: ${self:provider.stage}
     Service: Backend
 
 functions:
